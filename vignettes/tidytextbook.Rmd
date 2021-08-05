@@ -1,0 +1,257 @@
+---
+title: "tidytextbook"
+output: rmarkdown::html_vignette
+vignette: >
+  %\VignetteIndexEntry{tidytextbook}
+  %\VignetteEngine{knitr::rmarkdown}
+  %\VignetteEncoding{UTF-8}
+---
+
+```{r, include = FALSE}
+knitr::opts_chunk$set(
+  collapse = TRUE,
+  comment = "#>"
+)
+```
+
+```{r setup}
+library(tidytextbook)
+# repo de l'appli : https://github.com/juliasilge/learntidytext
+```
+
+
+# Chapter 2 : Thank you for coming to my TED talk
+
+The first case study of this tutorial uses a data set of TED talks created by Katherine M. Kinnaird and John Laudun for their paper “TED Talks as Data”. The specific talks we are using are from the main TED event, and the data set was curated in the summer of 2018.
+
+There are two main pieces of R software we will use in our text analysis work throughout this tutorial, the tidyverse metapackage and tidytext. To clarify for yourself what tools you are using, load the two packages below (first tidyverse, and then tidytext) by replacing the ___ with the package names.
+
+
+```{r, message=FALSE, warning=FALSE, echo=FALSE}
+library(tidyverse)
+library(tidytext)
+```
+
+
+## TED talk transcripts
+The TED talk transcripts are available to you in a dataframe called ted_talks. There are three variables in this data set:
+
+* talk_id: the identifier from the TED website for this particular talk
+
+* text: the text of this TED talk
+
+* speaker: the main or first listed speaker (some TED talks have more than one speaker)
+
+
+```{r}
+ted_talks <- read_rds("../data/ted_talks.rds")
+glimpse(ted_talks)
+```
+
+### How to tidy text data
+
+The text data is currently in a dataframe, but it is not tidy in the sense of being compatible with tidy tools. We need to transform it so that it is in a different format, with one observation per row.
+
+When we do text analysis, the observations we are interested in aren’t the whole talks at once, but rather individual tokens. A token is a meaningful unit of text for analysis; in many cases, this just means a single word. The process of tokenization identifies and breaks apart text into individual tokens. You can use tidytext’s unnest_tokens() function to accomplish all of this at once, both the tidying and the tokenization.
+
+```{r}
+tidy_talks <- ted_talks %>% 
+  unnest_tokens(word, text)
+
+head(tidy_talks)
+```
+
+The unnest_tokens() function transforms non-tidy text data into tidy text data. It takes three arguments:
+
+the input dataframe that contains your text (often you will use the pipe %>% to send this argument to unnest_tokens()),
+the output column that you want to unnest to, and
+the input column that you want to unnest from.
+
+What did unnest_tokens() do here? Instead of having 992 rows and reading each talk across the line in text, we now have 2,005,342 rows and can read each talk down the column in word. We have tokenized and tidied the text, as well as a few other transformations:
+
+Other columns have been retained.
+Punctuation has been stripped out.
+Words have been converted to lower-case.
+These are defaults in the function that can be changed, if not appropriate to your analysis.
+
+
+### Tokenize to bigrams
+
+We said before that tokenization is the process of identifying and breaking apart text into tokens, meaningful units of text; those meaningful units of text are most often single words in text analysis but they do not have to be! We can move beyond single words to other kinds of tokens, like n-grams. An n-gram is a consecutive sequence of n words. Let’s look at these TED talks and tokenize to bigrams, n-grams of order 2.
+
+Use the same function for tokenizing and tidying to create the bigrams.
+
+```{r}
+ted_bigrams <- ted_talks %>% 
+  unnest_tokens(bigram, text, token = "ngrams", n = 2)
+
+glimpse(ted_bigrams)
+```
+
+### Most common TED talk words
+Let’s go back to single words. Now that our data in a tidy format, a whole world of analysis opportunity has opened up for us. We can start by computing term frequencies in just one line. What are the most common words in these TED talks?
+
+Use count() to find the most common words.
+
+```{r}
+tidy_talks %>%
+  count(word, sort = TRUE)
+```
+
+
+### Removing stop words
+
+Words like “the”, “and”, and “to” that aren’t very interesting for a text analysis are called stop words. Often the best choice is to remove them. The tidytext package provides access to stop word lexicons, with a default list and then other options and other languages.
+
+First, run the code the way it is.
+Next, try out the language argument, which takes two-letter language abbreviations like "es".
+
+```{r}
+get_stopwords()
+get_stopwords(language = "fr")
+```
+
+```{r}
+tidy_talks %>%
+  anti_join(get_stopwords()) %>%
+  count(word, sort = TRUE)
+```
+
+### Visualize top words
+
+```{r}
+tidy_talks %>%
+  # remove stop words
+  anti_join(get_stopwords()) %>%
+  count(word, sort = TRUE) %>% 
+  slice_max(n, n = 20) %>%
+  mutate(word = reorder(word, n)) %>%
+  # put `n` on the x-axis and `word` on the y-axis
+  ggplot(aes(n, word)) +
+  geom_col()
+```
+
+### Compare TED talk vocabularies
+
+One of my favorite approaches to text analysis is to compare how different people or groups use language. There are lots of different ways to do this, but you can start with plain old word counts! Let’s look at two TED talk speakers, Jane Goodall and Temple Grandin, and count up the words they used in their TED talks.
+
+If you want to explore other speakers, switch out for different speakers’ names from the data set and hit “Run Code”, after finishing the exercise.
+
+Use filter() to keep only the words spoken by Jane Goodall and Temple Grandin.
+
+Remove the default list of stop words.
+
+Use count() with two arguments to count up the term frequencies by speaker and word. (These first three steps could actually be completed in any order but this makes most sense to me.)
+
+Come back and filter() again to only keep words spoken at least 10 times by both women.
+
+The function pivot_wider() from tidyr pivots the long, tidy dataframe to a wide dataframe so we can more easily compare the two speakers’ word counts.
+
+```{r}
+tidy_talks %>%
+  filter(speaker %in% c("Jane Goodall", "Temple Grandin")) %>%
+  # remove stop words
+  anti_join(get_stopwords()) %>%
+  # count with two arguments
+  count(speaker, word, sort = FALSE) %>%
+  group_by(word) %>%
+  filter(sum(n) > 10) %>%
+  ungroup() %>%
+  pivot_wider(names_from = "speaker", values_from = "n", values_fill = 0) 
+```
+
+## Visualize vocabulary comparison
+
+```{r}
+library(ggrepel)
+
+tidy_talks %>%
+  filter(speaker %in% c("Jane Goodall", "Temple Grandin")) %>%
+  anti_join(get_stopwords()) %>%
+  count(speaker, word) %>%
+  group_by(word) %>%
+  filter(sum(n) > 10) %>%
+  ungroup() %>%
+  pivot_wider(names_from = "speaker", values_from = "n", values_fill = 0) %>%
+  ggplot(aes(`Jane Goodall`, `Temple Grandin`)) +
+  geom_abline(color = "gray50", size = 1.2, alpha = 0.8, lty = 2) +
+  # use the special ggrepel geom for nicer text plotting
+  geom_text_repel(aes(label = word)) +
+  coord_fixed()
+```
+
+
+# Chapter 3 : Shakespeare
+
+```{r}
+shakespeare <- read_rds("../data/shakespeare.rds")
+```
+
+
+```{r}
+shakespeare %>% 
+  glimpse()
+
+shakespeare %>%
+  count(genre)
+
+shakespeare %>%
+  count(genre, title)
+```
+
+## Unnesting from text to word
+
+```{r}
+tidy_shakespeare <- shakespeare %>%
+  group_by(title) %>%
+  mutate(linenumber = row_number()) %>%
+  ungroup() %>%
+  unnest_tokens(word, text)
+
+tidy_shakespeare %>% 
+  # count to find out how many times each word is used
+  count(word, sort = TRUE)
+```
+
+## Sentiment lexicons
+
+Sentiment analysis is a way to measure the attitudes and opinions expressed in text, and can be approached in multiple ways. A common approach is to use sentiment lexicons, lists of words that have been curated and scored in some way. Lexicons are typically created by NLP researchers and some have licenses that restrict their use, for example in commercial settings. The "bing" lexicon of Hu and Liu (2004) is a general purpose English lexicon (which can be used in commercial settings with attribution) that categorizes words as either positive or negative.
+
+```{r}
+get_sentiments("bing")
+```
+
+## Sentiment analysis of Shakespeare
+
+```{r}
+shakespeare_sentiment <- tidy_shakespeare %>%
+  # implement sentiment analysis with the "bing" lexicon
+  inner_join(get_sentiments("bing")) 
+
+shakespeare_sentiment %>%
+  # find how many positive/negative words each play has
+  count(title, sentiment)
+```
+
+## Tragedy or comedy ?
+
+Which plays have a higher percentage of negative words? Do the tragedies have more negative words than the comedies?
+
+
+```{r}
+sentiment_counts <- tidy_shakespeare %>%
+    # implement sentiment analysis using the "bing" lexicon
+    inner_join(get_sentiments("bing"))  %>%
+    # count the number of words by title, genre, and sentiment
+    count(title, genre, sentiment)
+
+sentiment_counts %>%
+  group_by(title) %>%
+  # find the total number of words in each play
+  mutate(total = sum(n),
+         percent = n / total) %>%
+  # filter the results for only negative sentiment
+  filter(sentiment == "negative") %>%
+  arrange(percent)
+```
+
