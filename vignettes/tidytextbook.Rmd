@@ -255,3 +255,61 @@ sentiment_counts %>%
   arrange(percent)
 ```
 
+## Most common positive and negative words
+
+```{r}
+word_counts <- tidy_shakespeare %>%
+    inner_join(get_sentiments("bing"))  %>%
+  # count by word and sentiment
+  count(word, sentiment)
+
+top_words <- word_counts %>%
+  # group by sentiment
+  group_by(sentiment) %>%
+  slice_max(n, n = 10) %>%
+  ungroup() %>%
+  mutate(word = reorder(word, n))
+
+ggplot(top_words, aes(n, word, fill = sentiment)) +
+  geom_col(show.legend = FALSE) +
+  facet_wrap(~ sentiment, scales = "free")
+```
+
+## Sentiment changes through a play
+
+In the last set of exercises in this case study, you will examine how sentiment changes through the narrative arcs of these Shakespearean plays. We will start by first implementing sentiment analysis using inner_join(), and then use count() with four arguments:
+
+title, genre, an index that will section together lines of the play, and sentiment.
+
+```{r}
+tidy_shakespeare %>%
+  # implement sentiment analysis using "bing" lexicon
+    inner_join(get_sentiments("bing"))  %>%
+  # count using four arguments
+  count(title, genre, index = linenumber %/% 70, sentiment)
+```
+
+## Visualizing narrative arcs
+
+Now you will build on the code from the previous exercise and continue to move forward to see how sentiment changes through these Shakespearean plays.
+
+
+```{r}
+tidy_shakespeare %>%
+  inner_join(get_sentiments("bing")) %>%
+  count(title, genre, index = linenumber %/% 70, sentiment) %>%
+  # pivot sentiment and n wider
+  pivot_wider(names_from = sentiment, values_from = n, values_fill = 0) %>%
+  # use mutate to compute net sentiment
+  mutate(sentiment = positive - negative) %>%
+  # put index on x-axis, sentiment on y-axis, and map comedy/tragedy to fill
+  ggplot(aes(index, sentiment, fill = genre)) +
+  # make a bar chart with geom_col()
+  geom_col() +
+  # make small multiples for each title with facet_wrap()
+  facet_wrap(~ title, scales = "free_x")
+```
+
+
+# Chapter 4 : Newspaper headlines
+
