@@ -329,19 +329,11 @@ nyt_headlines %>%
 # pipe `nyt_headlines` to the next line
 tidy_nyt <- nyt_headlines %>% 
   mutate(id = row_number()) %>%
+  unnest_tokens(word, headline)
+
   # transform the `headline` column to a `word` column
-```
-
-
-```{r}
-unnest_tokens
-```
-
-
-```{r}
-(word, headline)
-
 tidy_nyt
+
 ```
 
 
@@ -448,5 +440,122 @@ bigram_tf_idf %>%
 ```
 
 Magnificent! Remember that we computed tf-idf per headline and did not put any information about the sections into the tf-idf computation. The reason that high tf-idf bigrams about drilling are associated with climate reporting is because tf-idf is good at finding distinctive tokens in a document compared to a collection of other documents.
+
+
+# Chapter 5 : Singing a different tune
+
+You have made it to your final case study of this tutorial! This case study demonstrates again how these kinds of techniques are applicable for many diverse kinds of texts. You have analyzed TED talks, Shakespeare’s plays, New York Times headlines, and now, in this final case study, you are going to use your text mining and sentiment analysis skills on a data set of lyrics from pop songs over 50 years. All these texts are very different each other, but you are able to gain insight in each case because this approach is flexible and powerful.
+
+
+```{r}
+song_lyrics <- read_rds("../data/song_lyrics.rds")
+```
+
+## Tidying song lyrics
+
+```{r}
+# pipe song_lyrics to the next line
+tidy_lyrics <- song_lyrics  %>% 
+  # transform the lyrics column to a word column
+  unnest_tokens(word, lyrics)
+
+# print tidy_lyrics
+tidy_lyrics
+```
+
+```{r}
+tidy_lyrics %>%
+  count(word, sort = TRUE)
+
+```
+
+
+## Words per song
+
+```{r}
+tidy_lyrics %>% 
+  # count with two arguments to find the number of words used in each song each year
+  count(year, song) %>% 
+  # put `year` on the x-axis and `n` on the y-axis
+  ggplot(aes(year, n)) + 
+  # make a scatter plot with `geom_point()`
+  geom_point(alpha = 0.4, size = 5, color = "darkcyan") + 
+  # fit a line to the points with `geom_smooth()`
+  geom_smooth(method = "lm", color = "black")
+```
+
+## Pop vocabulary over decades
+
+
+```{r}
+word_counts <- tidy_lyrics %>% 
+  anti_join(get_stopwords()) %>% 
+  count(year, word) %>% 
+  # group by `year`
+  group_by(year) %>%
+  # create a new column for the total words per year
+  mutate(year_total = sum(n)) %>% 
+  ungroup() %>% 
+  # now group by `word`
+  group_by(word) %>% 
+  # keep only words used more than 500 times
+  filter(sum(n) > 500) %>% 
+  ungroup()
+
+word_counts
+```
+
+## Many models
+
+Now we can use the new word_counts data set to train many linear models, one per word. We will load the broom package to handle the model output.
+
+Create list-columns by nesting the word count data, nesting by word.
+Use mutate() to create a new column for our models. We are training one model for each word, with year as the predictor.
+NOTE: We are creating a slightly more complicated model than shown in the many models chapter, because we are modeling word counts, rather than a continuous property. The following is a generalized linear model glm() using numbers of “successes” (i.e. counts for a specific word) and “failures” (i.e. the total counts for the year) as the response; this approach works better for this kind of data.
+
+Within the call to summarize(), use the broom function tidy() to summarize the model objects we just created for each word.
+Use filter() to only keep the "year" terms in the output, since we are not interested in the intercepts.
+
+
+```{r}
+library(broom)
+
+slopes <- word_counts %>%
+  nest_by(word) %>%
+  # create a new column for our `model` objects
+  mutate(model = list(glm(cbind(n, year_total) ~ year, 
+                          family = "binomial", data = data))) %>%
+  summarize(tidy(model)) %>%
+  ungroup() %>%
+  # filter to only keep the "year" terms
+  filter(term == "year") %>%
+  mutate(p.value = p.adjust(p.value)) %>%
+  arrange(estimate)
+
+slopes
+```
+
+
+## Visualizing many models
+
+It’s time for the last exercise in this case study on song lyrics! Let’s create a visualization for all these models we trained with plotly. The visualization we are going to create is what is called a volcano plot, comparing effect size and statistical significance. You can use your mouse to see the words in the tooltip of the interactive plot
+
+```{r}
+library(plotly)
+
+p <- slopes %>%
+  # put `estimate` on the x-axis and `p.value` on the y-axis
+  ggplot(aes(estimate, `p.value`, label = word)) +
+  geom_vline(xintercept = 0, lty = 2, size = 1.5, alpha = 0.7, color = "gray50") +
+  # make a scatter plot using `geom_point()`
+  geom_point(color = "darkcyan", alpha = 0.5, size = 2.5) +
+  scale_y_log10()
+
+# call ggplotly() on the plot we made above
+ggplotly(p)
+```
+
+Delightful! The effect size on the x-axis tells us whether a word is being used more (positive) or less (negative) as time passes. The p-value on the y-axis tells us about the significance of the result for that particular word. In earlier decades, song lyrics were more likely to address love/lovin’/loves while in more recent decades, song lyrics were more likely to include profanity.
+
 
 
