@@ -240,10 +240,10 @@ Which plays have a higher percentage of negative words? Do the tragedies have mo
 
 ```{r}
 sentiment_counts <- tidy_shakespeare %>%
-    # implement sentiment analysis using the "bing" lexicon
-    inner_join(get_sentiments("bing"))  %>%
-    # count the number of words by title, genre, and sentiment
-    count(title, genre, sentiment)
+  # implement sentiment analysis using the "bing" lexicon
+  inner_join(get_sentiments("bing"))  %>%
+  # count the number of words by title, genre, and sentiment
+  count(title, genre, sentiment)
 
 sentiment_counts %>%
   group_by(title) %>%
@@ -259,7 +259,7 @@ sentiment_counts %>%
 
 ```{r}
 word_counts <- tidy_shakespeare %>%
-    inner_join(get_sentiments("bing"))  %>%
+  inner_join(get_sentiments("bing"))  %>%
   # count by word and sentiment
   count(word, sentiment)
 
@@ -284,7 +284,7 @@ title, genre, an index that will section together lines of the play, and sentime
 ```{r}
 tidy_shakespeare %>%
   # implement sentiment analysis using "bing" lexicon
-    inner_join(get_sentiments("bing"))  %>%
+  inner_join(get_sentiments("bing"))  %>%
   # count using four arguments
   count(title, genre, index = linenumber %/% 70, sentiment)
 ```
@@ -312,4 +312,141 @@ tidy_shakespeare %>%
 
 
 # Chapter 4 : Newspaper headlines
+
+```{r}
+nyt_headlines <- read_rds("../data/nyt_headlines.rds")
+```
+
+```{r}
+nyt_headlines %>%
+  count(section, sort = TRUE)
+```
+
+
+## Tidying newspaper headlines
+
+```{r}
+# pipe `nyt_headlines` to the next line
+tidy_nyt <- nyt_headlines %>% 
+  mutate(id = row_number()) %>%
+  # transform the `headline` column to a `word` column
+```
+
+
+```{r}
+unnest_tokens
+```
+
+
+```{r}
+(word, headline)
+
+tidy_nyt
+```
+
+
+## Most common headline words
+
+```{r}
+tidy_nyt %>%
+  count(word, sort = TRUE)
+```
+
+```{r}
+tidy_nyt %>%
+  anti_join(get_stopwords()) %>%
+  count(word, sort = TRUE)
+
+```
+
+## What are the newspaper sections about?
+
+A central question in text mining is how to quantify what different documents or categories of documents are about. One approach to measure this is to use tf-idf, term frequency-inverse document frequency. A word’s term frequency is how frequently it occurs in a document. A word’s inverse document frequency is a weight, which decreases the weight for commonly used words and increases the weight for words that are not used very much in a collection of documents:
+
+If you multiply the two together, you get tf-idf, a statistic intended to measure how important a word is to a document in a collection (or corpus) of documents. The bind_tf_idf() function from tidytext can compute tf-idf for a text data in a tidy format.
+
+Let’s look at this in the context of the NYT headlines. In our case study here, each headline is a document, and the corpus is the whole month of headlines.
+
+Start by counting up the words in the tidy_nyt data, using three arguments: section (to keep track of the newspaper sections), id for each headline, and word.
+
+Specify the appropriate three arguments for bind_tf_idf():
+
+The first is the token or term, word, and the second is the document, the headline id.
+
+The last argument is the column that contains the document-term counts, which is n, the output of count().
+
+Because of the line arrange(-tf_idf), the output shows the highest tf-idf words in the whole data set of headlines, the most distinctive words found.
+
+```{r}
+nyt_tf_idf <- tidy_nyt %>%
+  # count with three arguments
+  count(section, id, word) %>%
+  # there are also three arguments for `bind_tf_idf()`
+  bind_tf_idf(word, id, n) %>%
+  arrange(-tf_idf)
+
+nyt_tf_idf
+```
+
+Great work! The highest tf-idf words also have both n and term frequency equal to 1, meaning that these were headlines that only had a single word in them. Not all the headlines in this data set are what we would think of as traditional headlines.
+
+```{r}
+sections <- c("Food", "Opinion", "Technology", "The Upshot")
+
+nyt_tf_idf %>%
+  filter(!near(tf, 1)) %>%
+  filter(section %in% sections) %>%
+  group_by(section) %>%
+  slice_max(tf_idf, n = 10, with_ties = FALSE) %>%
+  ungroup() %>%
+  mutate(word = factor(word, levels = rev(unique(word)))) %>%
+  # put `tf_idf` on the x-axis, `word` on the y-axis
+  ggplot(aes(tf_idf, word, fill = section)) +
+  geom_col(show.legend = FALSE) +
+  # make small multiples
+  facet_wrap(~ section, ncol = 2, scales = "free")
+```
+
+## Tokenize headlines to bigrams
+
+```{r}
+nyt_bigrams <- nyt_headlines %>%
+  mutate(id = row_number()) %>%
+  # tidy/tokenize with n = 2
+  unnest_tokens(bigram, headline, token = "ngrams", n = 2)
+
+nyt_bigrams
+```
+
+## Compute tf-idf of bigrams
+
+```{r}
+bigram_tf_idf <- nyt_bigrams %>%
+  # count with three arguments
+  count(section, id, bigram) %>%
+  bind_tf_idf(bigram, id, n) %>%
+  arrange(-tf_idf)
+
+bigram_tf_idf
+```
+
+```{r}
+sections <- c("Books", "Climate", "New York", "Parenting")
+
+bigram_tf_idf %>%
+  filter(!near(tf, 1)) %>%
+  filter(section %in% sections) %>%
+  # what should you group by?
+  group_by(section) %>%
+  slice_max(tf_idf, n = 10, with_ties = FALSE) %>%
+  ungroup() %>%
+  mutate(bigram = factor(bigram, levels = rev(unique(bigram)))) %>%
+  # how should the plot aesthetics be set up?
+  ggplot(aes(tf_idf, bigram, fill = section)) +
+  geom_col(show.legend = FALSE) +
+  facet_wrap(~ section, ncol = 2, scales = "free")
+```
+
+Magnificent! Remember that we computed tf-idf per headline and did not put any information about the sections into the tf-idf computation. The reason that high tf-idf bigrams about drilling are associated with climate reporting is because tf-idf is good at finding distinctive tokens in a document compared to a collection of other documents.
+
 
