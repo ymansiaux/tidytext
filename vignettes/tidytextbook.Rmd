@@ -558,4 +558,19 @@ ggplotly(p)
 Delightful! The effect size on the x-axis tells us whether a word is being used more (positive) or less (negative) as time passes. The p-value on the y-axis tells us about the significance of the result for that particular word. In earlier decades, song lyrics were more likely to address love/lovin’/loves while in more recent decades, song lyrics were more likely to include profanity.
 
 
+# Chapter 6 : Going further
+
+Congratulations! You have finished these four case studies and learned so much about how to analyze text data with tidy data principles. We’ve linked to the documentation site for tidytext several times throughout this tutorial, but there are also other resources available for you to extend your learning.
+
+Learn more about exploratory data analysis for text
+To dive deeper into how to summarize, visualize, and thoroughly explore text data, check out my book Text Mining with R: A Tidy Approach with my coauthor David Robinson.
+
+Learn about supervised machine learning for text
+To learn how to build reliable and appropriate machine learning models with text data, check out my book Supervised Machine Learning for Text Analysis in R with my coauthor Emil Hvitfeldt.
+
+Explore other approaches to text analysis in R
+Using the tidytext package isn’t the only way to approach your text analysis needs. Other R packages I have used and like include quanteda, cleanNLP, and spacyr. The CRAN task view on natural language processing contains many more R packages.
+
+Learn more about learnr
+This tutorial was made with the learnr package in R. See the learnr introduction and some example tutorials here: https://rstudio.github.io/learnr/
 
